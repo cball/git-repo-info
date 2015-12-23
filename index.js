@@ -69,6 +69,25 @@ function commitForTag(gitPath, tag) {
   }
 }
 
+function dateForTaggedObject(gitPath, taggedObject) {
+  var objectPath = path.join(gitPath, 'objects', taggedObject.slice(0, 2), taggedObject.slice(2));
+
+  if (!zlib.inflateSync || !fs.existsSync(objectPath)) {
+    // we can't locate a file, so no date to parse.
+    return;
+  }
+
+  var objectContents = zlib.inflateSync(fs.readFileSync(objectPath)).toString();
+  var timestamp = objectContents.match(/committer.+>\s+(\d+.*\n)/);
+  var timestampString = null;
+
+  if (timestamp) {
+    timestampString = new Date(parseInt(timestamp[1].trim()) * 1000);
+  }
+
+  return timestampString;
+}
+
 function findTag(gitPath, sha) {
   var tag = findPackedTag(gitPath, sha);
   if (tag) { return tag; }
@@ -113,12 +132,15 @@ module.exports = function(gitPath) {
       // Find branch and SHA
       if (refPath) {
         var branchPath = path.join(gitPath, refPath.trim());
+        var taggedObject = fs.readFileSync(branchPath, {encoding: 'utf8' }).trim();
 
         result.branch  = branchName;
-        result.sha     = fs.readFileSync(branchPath, {encoding: 'utf8' }).trim();
+        result.sha     = taggedObject;
       } else {
         result.sha = branchName;
       }
+
+      result.date = dateForTaggedObject(gitPath, taggedObject);
 
       result.abbreviatedSha = result.sha.slice(0,10);
 
